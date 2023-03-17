@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=0">
+  <title>すのほちゃんカメラ(仮) - sunoho.com</title>
+  <style>
+    form {
+      margin-bottom: 1rem;
+    }
+    #canvas {
+      background-color: #ccc;
+      width: 100%;
+      max-width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <h1>すのほちゃんカメラ(仮)</h1>
+  <form>
+    <label for="image1"><h2>合成したい写真を選択</h2></label>
+    <input type="file" id="image1" name="image1"><br>
+  </form>
+  <div class="container"><canvas id="canvas"></canvas></div>
+  <a id="download-btn" href="#" download="sunohocamera.png">合成した画像をダウンロード</a>
+  <h2>つかいかた</h2>
+  <p>合成したい写真を選択するとすのほちゃんが合成されて表示されます。合成されたすのほちゃんは動かせます。あまりデカい写真を使うとすのほちゃんの動きがトロくなるのでほどほどの画像を使ってください。スマートフォンでも動きますがあまり体験が良くないです。できればパソコンで操作してください。</p>
+
+  <script>
+  // Canvasを取得します
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  // 1つ目の画像を読み込み
+  const image1 = document.getElementById("image1");
+  image1.addEventListener("change", handleImage1Upload);
+  let baseImage;
+
+  function handleImage1Upload(event) {
+    const file = event.target.files[0];
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      const image = new Image();
+      image.onload = function() {
+        baseImage = image;
+
+        // 画像の幅と高さを取得してcanvasのサイズを変更する
+        canvas.width = baseImage.width;
+        canvas.height = baseImage.height;
+
+        drawImages();
+      };
+      image.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // 2つ目の画像を読み込み
+  const image2 = 'image2.png';
+  const topImage = new Image();
+  topImage.src = image2;
+
+  // 2つ目の画像をドラッグアンドドロップするための変数
+  let dragging = false;
+  let dragStartX, dragStartY, offsetX = 0,
+    offsetY = 0;
+  let scaleFactor = 1; // 追加
+
+  // 画像を重ね合わせて描画する
+  function drawImages() {
+    // 1つ目の画像をCanvasに描画します
+    ctx.drawImage(baseImage, 0, 0);
+
+    // 2つ目の画像をCanvasに描画します
+    ctx.save(); // 変換前の状態を保存
+    ctx.translate(offsetX, offsetY); // 移動
+    ctx.scale(scaleFactor, scaleFactor); // 拡大縮小
+    ctx.drawImage(topImage, 0, 0);
+    ctx.restore(); // 変換前の状態に戻す
+  }
+
+  // マウスホイールで拡大縮小するためのイベントリスナーを追加
+  canvas.addEventListener('wheel', function(event) {
+    event.preventDefault(); // デフォルトのスクロール動作を無効化
+
+    const delta = Math.sign(event.deltaY); // ホイールの回転量を取得し、正負を判定
+
+    if (delta > 0) {
+      scaleFactor /= 1.1; // 縮小
+    } else {
+      scaleFactor *= 1.1; // 拡大
+    }
+
+    drawImages();
+  });
+
+  // マウスドラッグで移動するためのイベントリスナーを追加
+  canvas.addEventListener('mousedown', function(event) {
+    dragging = true;
+    dragStartX = event.clientX;
+    dragStartY = event.clientY;
+  });
+
+  canvas.addEventListener('mousemove', function(event) {
+    if (dragging) {
+      offsetX += event.clientX - dragStartX;
+      offsetY += event.clientY - dragStartY;
+      dragStartX = event.clientX;
+      dragStartY = event.clientY;
+      drawImages();
+    }
+  });
+
+  canvas.addEventListener('mouseup', function(event) {
+    dragging = false;
+  });
+
+  // スマートフォン対応
+  canvas.addEventListener('touchstart', function(event) {
+    dragging = true;
+    dragStartX = event.changedTouches[0].clientX;
+    dragStartY = event.changedTouches[0].clientY;
+
+    // 2点間の距離を測定します
+    if (event.touches.length === 2) {
+      const touch1 = event.touches[0];
+      const touch2 = event.touches[1];
+      lastTouchDistance = Math.hypot(touch1.clientX - touch2.clientX, touch1.clientY - touch2.clientY);
+    }
+  });
+
+  canvas.addEventListener('touchmove', function(event) {
+    if (dragging) {
+      offsetX += event.changedTouches[0].clientX - dragStartX;
+      offsetY += event.changedTouches[0].clientY - dragStartY;
+      dragStartX = event.changedTouches[0].clientX;
+      dragStartY = event.changedTouches[0].clientY;
+      drawImages();
+    }
+
+    // 2点間の距離を再び測定し、前回の距離との比率から拡大・縮小率を求めます
+    if (event.touches.length === 2) {
+      const touch1 = event.touches[0];
+      const touch2 = event.touches[1];
+      const touchDistance = Math.hypot(touch1.clientX - touch2.clientX, touch1.clientY - touch2.clientY);
+      scaleFactor *= touchDistance / lastTouchDistance;
+      lastTouchDistance = touchDistance;
+      drawImage();
+    }
+  });
+
+  canvas.addEventListener('touchend', function(event) {
+    dragging = false;
+  });
+
+  // ダウンロードボタンを取得します
+  const downloadBtn = document.getElementById('download-btn');
+  // ダウンロード用リンクのhref属性に画像データを設定する
+  downloadBtn.addEventListener('click', function() {
+    const imageData = canvas.toDataURL("image/png");
+    downloadBtn.setAttribute('href', imageData);
+  });
+  </script>
+</body>
+</html>
